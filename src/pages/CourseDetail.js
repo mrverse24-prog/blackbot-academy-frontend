@@ -1,86 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import './CourseDetail.css';
 
-import '../styles/CourseDetail.css';
+const API_URL = 'https://blackbot-academy-backend-production.up.railway.app/api';
 
-function CourseDetail() {
+export default function CourseDetail() {
   const { courseId } = useParams();
-  const navigate = useNavigate();
-  
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchCourse = async () => {
       try {
-        const token = localStorage.getItem('token');
         const response = await axios.get(
-          `http://localhost:5000/api/courses/${courseId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          `${API_URL}/courses/${courseId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }
         );
         setCourse(response.data);
-      } catch (err) {
-        setError('Failed to load course');
-        console.error(err);
+      } catch (error) {
+        console.error('Error fetching course:', error);
       } finally {
         setLoading(false);
       }
     };
-
     fetchCourse();
   }, [courseId]);
 
-  if (loading) return <div className="loading">Loading course...</div>;
-  if (error) return <div className="error">{error}</div>;
-  if (!course) return <div className="error">Course not found</div>;
+  if (loading) return <div>Loading...</div>;
+  if (!course) return <div>Course not found</div>;
 
   return (
     <div className="course-detail">
-      <button className="back-btn" onClick={() => navigate('/dashboard')}>
-        ← Back to Dashboard
-      </button>
-      
-      <div className="course-header">
-        <h1>{course.title}</h1>
-        <p className="course-instructor">By {course.instructor}</p>
-      </div>
-
-      <div className="course-info">
-        <p className="course-description">{course.description}</p>
-        <div className="course-meta">
-          <span className="meta-item">📚 {course.lessons?.length || 0} Lessons</span>
-          <span className="meta-item">⏱️ {course.duration}</span>
-          <span className="meta-item">📊 {course.level}</span>
-        </div>
-      </div>
-
-      <div className="lessons-section">
+      <button onClick={() => navigate(-1)}>← Back</button>
+      <h1>{course.title}</h1>
+      <p>{course.description}</p>
+      <div className="lessons">
         <h2>Lessons</h2>
-        <div className="lessons-list">
-          {course.lessons && course.lessons.length > 0 ? (
-            course.lessons.map((lesson) => (
-              <div key={lesson._id} className="lesson-card">
-                <div className="lesson-info">
-                  <h3>{lesson.title}</h3>
-                  <p className="lesson-duration">{lesson.duration} min</p>
-                </div>
-                <button 
-                  className="play-btn"
-                  onClick={() => navigate(`/lesson/${lesson._id}`)}
-                >
-                  ▶ Play
-                </button>
-              </div>
-            ))
-          ) : (
-            <p>No lessons available yet</p>
-          )}
-        </div>
+        {course.lessons && course.lessons.map((lesson) => (
+          <div key={lesson._id} className="lesson-item">
+            <h3>{lesson.title}</h3>
+            <button onClick={() => navigate(`/lesson/${lesson._id}`)}>
+              Start Lesson
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
-
-export default CourseDetail;

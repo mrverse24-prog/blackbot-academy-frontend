@@ -2,82 +2,65 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
+const API_URL = 'https://blackbot-academy-backend-production.up.railway.app/api';
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          const response = await axios.get('http://localhost:5000/api/auth/me', {
-            headers: { Authorization: `Bearer ${token}` }
+    const verifyToken = async () => {
+      if (token) {
+        try {
+          const response = await axios.get(`${API_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
           });
           setUser(response.data);
+        } catch (error) {
+          localStorage.removeItem('token');
+          setToken(null);
         }
-      } catch (err) {
-        console.error('Auth check failed:', err);
-        localStorage.removeItem('token');
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
-
-    checkAuth();
-  }, []);
+    verifyToken();
+  }, [token]);
 
   const login = async (email, password) => {
-    setError(null);
-    try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
-        email,
-        password
-      });
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
-      return response.data;
-    } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
-      throw err;
-    }
+    const response = await axios.post(`${API_URL}/auth/login`, {
+      email,
+      password,
+    });
+    setToken(response.data.token);
+    setUser(response.data.user);
+    localStorage.setItem('token', response.data.token);
   };
 
   const signup = async (name, email, password) => {
-    setError(null);
-    try {
-      const response = await axios.post('http://localhost:5000/api/auth/signup', {
-        name,
-        email,
-        password
-      });
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
-      return response.data;
-    } catch (err) {
-      setError(err.response?.data?.message || 'Signup failed');
-      throw err;
-    }
+    const response = await axios.post(`${API_URL}/auth/signup`, {
+      name,
+      email,
+      password,
+    });
+    setToken(response.data.token);
+    setUser(response.data.user);
+    localStorage.setItem('token', response.data.token);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
     setUser(null);
+    setToken(null);
+    localStorage.removeItem('token');
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, token, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
+export function useAuth() {
+  return useContext(AuthContext);
+}
