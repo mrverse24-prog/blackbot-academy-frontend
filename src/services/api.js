@@ -17,11 +17,35 @@ api.interceptors.request.use((config) => {
 
 export const authService = {
   signup: (data) => api.post('/api/auth/signup', data),
-  login: (email, password) => api.post('/api/auth/login', { email, password }),
+  login: (email, password) => {
+    return api.post('/api/auth/login', { email, password }).then((response) => {
+      // Extract the response data
+      const { token, user } = response.data;
+      
+      // Store BOTH token AND isAdmin
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user)); // Store entire user object
+      localStorage.setItem('isAdmin', user.isAdmin); // Store just the admin flag
+      
+      return response; // Return the full response
+    });
+  },
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('isAdmin'); // Clear this too
   },
+};
+
+// Helper functions to check admin status and get user
+export const isUserAdmin = () => {
+  const adminFlag = localStorage.getItem('isAdmin');
+  return adminFlag === 'true'; // Returns boolean
+};
+
+export const getCurrentUser = () => {
+  const userJSON = localStorage.getItem('user');
+  return userJSON ? JSON.parse(userJSON) : null;
 };
 
 export const courseService = {
