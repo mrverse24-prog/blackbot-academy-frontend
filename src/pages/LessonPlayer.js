@@ -1,128 +1,110 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { lessonService, quizService } from '../services/api';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import '../styles/LessonPlayer.css';
 
 function LessonPlayer() {
   const { lessonId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [lesson, setLesson] = useState(null);
-  const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [quizAnswers, setQuizAnswers] = useState({});
+  const [error, setError] = useState(null);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
-    fetchLessonData();
+    const fetchLesson = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(
+          `http://localhost:5000/api/lessons/${lessonId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setLesson(response.data);
+      } catch (err) {
+        setError('Failed to load lesson');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLesson();
   }, [lessonId]);
 
-  const fetchLessonData = async () => {
+  const handleMarkComplete = async () => {
     try {
-      const lessonRes = await lessonService.getLessonById(lessonId);
-      setLesson(lessonRes.data);
-      
-      if (lessonRes.data.courseId) {
-        const quizzesRes = await quizService.getQuizzesByCourse(lessonRes.data.courseId);
-        setQuizzes(quizzesRes.data);
-      }
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `http://localhost:5000/api/lessons/${lessonId}/complete`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setIsCompleted(true);
     } catch (err) {
-      setError('Failed to load lesson');
-    } finally {
-      setLoading(false);
+      console.error('Failed to mark lesson complete:', err);
     }
   };
 
-  const handleAnswerChange = (questionId, answer) => {
-    setQuizAnswers({
-      ...quizAnswers,
-      [questionId]: answer,
-    });
-  };
-
-  const handleSubmitQuiz = async (quizId) => {
-    try {
-      await quizService.submitQuiz(quizId, { answers: quizAnswers });
-      alert('Quiz submitted successfully!');
-      setShowQuiz(false);
-      setQuizAnswers({});
-    } catch (err) {
-      setError('Failed to submit quiz');
-    }
-  };
-
-  if (loading) return <div className="lesson-player-container">Loading...</div>;
-  if (error) return <div className="error-message">{error}</div>;
+  if (loading) return <div className="loading">Loading lesson...</div>;
+  if (error) return <div className="error">{error}</div>;
+  if (!lesson) return <div className="error">Lesson not found</div>;
 
   return (
-    <div className="lesson-player-container">
-      <button className="back-button" onClick={() => navigate(-1)}>
+    <div className="lesson-player">
+      <button className="back-btn" onClick={() => navigate(-1)}>
         ← Back
       </button>
 
-      <div className="lesson-content">
-        <h1>{lesson?.title}</h1>
-        <p className="lesson-description">{lesson?.description}</p>
-
-        {lesson?.videoUrl && (
-          <div className="video-container">
-            <iframe
+      <div className="player-container">
+        <div className="video-player">
+          {lesson.videoUrl ? (
+            <video 
+              controls 
               width="100%"
-              height="500"
               src={lesson.videoUrl}
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={lesson.title}
-            ></iframe>
-          </div>
-        )}
-
-        <div className="lesson-text">
-          {lesson?.content}
-        </div>
-      </div>
-
-      {quizzes.length > 0 && (
-        <section className="quiz-section">
-          <h2>Take a Quiz</h2>
-          {!showQuiz ? (
-            <button onClick={() => setShowQuiz(true)} className="quiz-button">
-              Start Quiz
-            </button>
+            >
+              Your browser does not support the video tag.
+            </video>
           ) : (
-            <div className="quiz-container">
-              {quizzes.map((quiz) => (
-                <div key={quiz.id} className="quiz">
-                  <h3>{quiz.title}</h3>
-                  {quiz.questions.map((question) => (
-                    <div key={question.id} className="quiz-question">
-                      <p>{question.text}</p>
-                      {question.options.map((option) => (
-                        <label key={option.id}>
-                          <input
-                            type="radio"
-                            name={`question-${question.id}`}
-                            value={option.id}
-                            onChange={() => handleAnswerChange(question.id, option.id)}
-                          />
-                          {option.text}
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-                  <button 
-                    onClick={() => handleSubmitQuiz(quiz.id)}
-                    className="submit-quiz-button"
-                  >
-                    Submit Quiz
-                  </button>
-                </div>
-              ))}
+            <div className="no-video">No video available</div>
+          )}
+        </div>
+
+        <div className="lesson-content">
+          <h1>{lesson.title}</h1>
+          <p className="lesson-duration">⏱️ {lesson.duration} minutes</p>
+          
+          <div className="lesson-description">
+            <h2>About this lesson</h2>
+            <p>{lesson.description}</p>
+          </div>
+
+          {lesson.resources && lesson.resources.length > 0 && (
+            <div className="resources-section">
+              <h2>Resources</h2>
+              <ul>
+                {lesson.resources.map((resource, index) => (
+                  <li key={index}>
+                    <a href={resource.url} target="_blank" rel="noopener noreferrer">
+                      {resource.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-        </section>
-      )}
+
+          <button 
+            className={`complete-btn ${isCompleted ? 'completed' : ''}`}
+            onClick={handleMarkComplete}
+            disabled={isCompleted}
+          >
+            {isCompleted ? '✓ Completed' : 'Mark as Complete'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
